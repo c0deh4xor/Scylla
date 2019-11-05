@@ -1,15 +1,15 @@
 #include "ImportsHandling.h"
 
-#include "Thunks.h"
-#include "Architecture.h"
-
 #include <atlmisc.h>
 #include <atlcrack.h>
 #include "multitree.h" // CMultiSelectTreeViewCtrl
 
 #include "resource.h"
 
-//#define DEBUG_COMMENTS
+#include "Thunks.h"
+#include "Architecture.h"
+#include "Scylla.h"
+
 
 void ImportThunk::invalidate()
 {
@@ -85,7 +85,8 @@ bool ImportsHandling::isImport(CTreeItem item)
 
 ImportModuleThunk * ImportsHandling::getModuleThunk(CTreeItem item)
 {
-	stdext::hash_map<HTREEITEM, TreeItemData>::const_iterator it;
+	//stdext::hash_map<HTREEITEM, TreeItemData>::const_iterator it;
+  std::unordered_map<HTREEITEM, TreeItemData>::const_iterator it;
 	it = itemData.find(item);
 	if(it != itemData.end())
 	{
@@ -100,7 +101,8 @@ ImportModuleThunk * ImportsHandling::getModuleThunk(CTreeItem item)
 
 ImportThunk * ImportsHandling::getImportThunk(CTreeItem item)
 {
-	stdext::hash_map<HTREEITEM, TreeItemData>::const_iterator it;
+	//stdext::hash_map<HTREEITEM, TreeItemData>::const_iterator it;
+  std::unordered_map<HTREEITEM, TreeItemData>::const_iterator it;
 	TreeItemData * data = getItemData(item);
 	if(data && !data->isModule)
 	{
@@ -116,7 +118,8 @@ void ImportsHandling::setItemData(CTreeItem item, const TreeItemData * data)
 
 ImportsHandling::TreeItemData * ImportsHandling::getItemData(CTreeItem item)
 {
-	stdext::hash_map<HTREEITEM, TreeItemData>::iterator it;
+	//stdext::hash_map<HTREEITEM, TreeItemData>::iterator it;
+  std::unordered_multimap<HTREEITEM, TreeItemData>::iterator it;
 	it = itemData.find(item);
 	if(it != itemData.end())
 	{
@@ -444,7 +447,7 @@ void ImportsHandling::updateImportInTreeView(const ImportThunk * importThunk, CT
 
 void ImportsHandling::updateModuleInTreeView(const ImportModuleThunk * importThunk, CTreeItem item)
 {
-	swprintf_s(stringBuffer, L"%s (%d) FThunk: " PRINTF_DWORD_PTR_HALF, importThunk->moduleName,importThunk->thunkList.size(), importThunk->firstThunk);
+	swprintf_s(stringBuffer, L"%s (%zd) FThunk: " PRINTF_DWORD_PTR_HALF, importThunk->moduleName,importThunk->thunkList.size(), importThunk->firstThunk);
 
 	item.SetText(stringBuffer);
 	Icon icon = getAppropiateIcon(importThunk->isValid());
@@ -690,9 +693,7 @@ bool ImportsHandling::addNotFoundApiToModuleList(const ImportThunk * apiNotFound
 			}
 			else
 			{
-#ifdef DEBUG_COMMENTS
 				Scylla::debugLog.log(L"Error iterator1 != (*moduleThunkList).end()");
-#endif
 				break;
 			}
 		}
@@ -706,9 +707,7 @@ bool ImportsHandling::addNotFoundApiToModuleList(const ImportThunk * apiNotFound
 
 	if (!module)
 	{
-#ifdef DEBUG_COMMENTS
 		Scylla::debugLog.log(L"ImportsHandling::addFunction module not found rva " PRINTF_DWORD_PTR_FULL, rva);
-#endif
 		return false;
 	}
 
@@ -757,9 +756,7 @@ bool ImportsHandling::addFunctionToModuleList(const ImportThunk * apiFound)
 			}
 			else
 			{
-#ifdef DEBUG_COMMENTS
 				Scylla::debugLog.log(L"Error iterator1 != moduleListNew.end()");
-#endif
 				break;
 			}
 		}
@@ -772,9 +769,7 @@ bool ImportsHandling::addFunctionToModuleList(const ImportThunk * apiFound)
 
 	if (!module)
 	{
-#ifdef DEBUG_COMMENTS
 		Scylla::debugLog.log(L"ImportsHandling::addFunction module not found rva " PRINTF_DWORD_PTR_FULL, apiFound->rva);
-#endif
 		return false;
 	}
 

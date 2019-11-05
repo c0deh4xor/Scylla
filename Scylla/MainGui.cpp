@@ -1,4 +1,6 @@
 #include "MainGui.h"
+#include <inttypes.h>
+#include <VersionHelpers.h>
 
 #include "Architecture.h"
 //#include "PluginLoader.h"
@@ -9,14 +11,14 @@
 #include "PickApiGui.h"
 //#include "NativeWinApi.h"
 #include "ImportRebuilder.h"
-#include "SystemInformation.h"
 #include "Scylla.h"
 #include "AboutGui.h"
 #include "DonateGui.h"
 #include "OptionsGui.h"
 #include "TreeImportExport.h"
 
-extern CAppModule _Module; // o_O
+// Globals
+CAppModule _Module;
 
 const WCHAR MainGui::filterExe[]    = L"Executable (*.exe)\0*.exe\0All files\0*.*\0";
 const WCHAR MainGui::filterDll[]    = L"Dynamic Link Library (*.dll)\0*.dll\0All files\0*.*\0";
@@ -25,7 +27,45 @@ const WCHAR MainGui::filterTxt[]    = L"Text file (*.txt)\0*.txt\0All files\0*.*
 const WCHAR MainGui::filterXml[]    = L"XML file (*.xml)\0*.xml\0All files\0*.*\0";
 const WCHAR MainGui::filterMem[]    = L"MEM file (*.mem)\0*.mem\0All files\0*.*\0";
 
-MainGui::MainGui() : selectedProcess(0), isProcessSuspended(false), importsHandling(TreeImports), TreeImportsSubclass(this, IDC_TREE_IMPORTS)
+
+int InitializeGui(HINSTANCE hInstance, LPARAM param)
+{
+	CoInitialize(NULL);
+
+	AtlInitCommonControls(ICC_LISTVIEW_CLASSES | ICC_TREEVIEW_CLASSES);
+
+	Scylla::initAsGuiApp();
+
+	HRESULT hRes = _Module.Init(NULL, hInstance);
+	ATLASSERT(SUCCEEDED(hRes));
+
+
+
+	int nRet = 0;
+	// BLOCK: Run application
+	{
+		MainGui dlgMain;
+		//MainGui* pMainGui = &dlgMain; // o_O
+
+		CMessageLoop loop;
+		_Module.AddMessageLoop(&loop);
+
+		dlgMain.Create(GetDesktopWindow(), param);
+
+		dlgMain.ShowWindow(SW_SHOW);
+
+		loop.Run();
+	}
+
+	_Module.Term();
+	CoUninitialize();
+
+	return nRet;
+}
+
+
+MainGui::MainGui() 
+: selectedProcess(0), isProcessSuspended(false), importsHandling(TreeImports), TreeImportsSubclass(this, IDC_TREE_IMPORTS), hProcessContext(NULL)
 {
 	/*
 	Logger::getDebugLogFilePath();
@@ -53,6 +93,11 @@ MainGui::MainGui() : selectedProcess(0), isProcessSuspended(false), importsHandl
 	hIconError.LoadIcon(IDI_ICON_ERROR, 16, 16);
 }
 
+MainGui::~MainGui()
+{
+	ScyllaUnInitContext(hProcessContext);
+}
+
 BOOL MainGui::PreTranslateMessage(MSG* pMsg)
 {
 	if(accelerators.TranslateAccelerator(m_hWnd, pMsg))
@@ -69,6 +114,8 @@ BOOL MainGui::PreTranslateMessage(MSG* pMsg)
 
 void MainGui::InitDllStartWithPreSelect( PGUI_DLL_PARAMETER guiParam )
 {
+	TCHAR TmpStringBuffer[600] = { 0 };
+
 	ComboProcessList.ResetContent();
 	std::vector<Process>& processList = Scylla::processLister.getProcessListSnapshotNative();
 	int newSel = -1;
@@ -76,8 +123,8 @@ void MainGui::InitDllStartWithPreSelect( PGUI_DLL_PARAMETER guiParam )
 	{
 		if (processList[i].PID == guiParam->dwProcessId)
 			newSel = (int)i;
-		swprintf_s(stringBuffer, L"%04d - %s - %s", processList[i].PID, processList[i].filename, processList[i].fullPath);
-		ComboProcessList.AddString(stringBuffer);
+		_stprintf_s(TmpStringBuffer, _T("%zu - %s - %s"), processList[i].PID, processList[i].filename, processList[i].fullPath);
+		ComboProcessList.AddString(TmpStringBuffer);
 	}
 	if (newSel != -1)
 	{
@@ -120,7 +167,7 @@ void MainGui::InitDllStartWithPreSelect( PGUI_DLL_PARAMETER guiParam )
 
 BOOL MainGui::OnInitDialog(CWindow wndFocus, LPARAM lInitParam)
 {
-	if (SystemInformation::currenOS == UNKNOWN_OS)
+	if (!IsWindowsXPOrGreater())
 	{
 		if(IDCANCEL == MessageBox(L"Operating System is not supported\r\nContinue anyway?", L"Scylla", MB_ICONWARNING | MB_OKCANCEL))
 		{
@@ -598,17 +645,14 @@ void MainGui::processSelectedActionHandler(int index)
 	Process &process = processList.at(index);
 	selectedProcess = 0;
 
+	// Cleanup previous results
 	clearImportsActionHandler();
+	ScyllaUnInitContext(hProcessContext);
 
 	Scylla::windowLog.log(L"Analyzing %s", process.fullPath);
 
-	if (ProcessAccessHelp::hProcess != 0)
-	{
-		ProcessAccessHelp::closeProcessHandle();
-		apiReader.clearAll();
-	}
-
-	if (!ProcessAccessHelp::openProcessHandle(process.PID))
+	// Open Scylla handle on current process
+	if (!ScyllaInitContext(&hProcessContext, process.PID))
 	{
 		enableDialogControls(FALSE);
 		Scylla::windowLog.log(L"Error: Cannot open process handle.");
@@ -645,14 +689,16 @@ void MainGui::processSelectedActionHandler(int index)
 
 void MainGui::fillProcessListComboBox(CComboBox& hCombo)
 {
+	TCHAR TmpStringBuffer[600] = { 0 };
 	hCombo.ResetContent();
+	
 
 	std::vector<Process>& processList = Scylla::processLister.getProcessListSnapshotNative();
 
 	for (size_t i = 0; i < processList.size(); i++)
 	{
-		swprintf_s(stringBuffer, L"%04d - %s - %s", processList[i].PID, processList[i].filename, processList[i].fullPath);
-		hCombo.AddString(stringBuffer);
+		_stprintf_s(TmpStringBuffer,  _T("%zu - %s - %s"), processList[i].PID, processList[i].filename, processList[i].fullPath);
+		hCombo.AddString(TmpStringBuffer);
 	}
 }
 
@@ -828,69 +874,73 @@ void MainGui::iatAutosearchActionHandler()
 	DWORD_PTR searchAddress = 0;
 	DWORD_PTR addressIAT = 0, addressIATAdv = 0;
 	DWORD sizeIAT = 0, sizeIATAdv = 0;
-	IATSearch iatSearch;
+	bool bAdvancedSearch = false;
 
 	if(!selectedProcess)
 		return;
 
-	if(EditOEPAddress.GetWindowTextLength() > 0)
+	if (EditOEPAddress.GetWindowTextLength() == 0)
+		return;
+
+	searchAddress = EditOEPAddress.GetValue();
+	if (!searchAddress)
+		return;
+
+	
+	// Normal search
+	if (SCY_ERROR_SUCCESS == ScyllaIatSearch(hProcessContext, &addressIAT, &sizeIAT, searchAddress, false))
 	{
-		searchAddress = EditOEPAddress.GetValue();
-		if (searchAddress)
+		Scylla::windowLog.log(L"IAT Search Nor: IAT VA " PRINTF_DWORD_PTR_FULL L" RVA " PRINTF_DWORD_PTR_FULL L" Size 0x%04X (%d)", addressIAT, addressIAT - ProcessAccessHelp::targetImageBase, sizeIAT, sizeIAT);
+	}
+	else
+	{
+		Scylla::windowLog.log(L"IAT Search Nor: IAT not found at OEP " PRINTF_DWORD_PTR_FULL L"!", searchAddress);
+	}
+
+	// optional advanced search
+	bAdvancedSearch = Scylla::config[USE_ADVANCED_IAT_SEARCH].isTrue();
+	if (bAdvancedSearch)
+	{
+		if (SCY_ERROR_SUCCESS == ScyllaIatSearch(hProcessContext, &addressIATAdv, &sizeIATAdv, searchAddress, true))
 		{
+			Scylla::windowLog.log(L"IAT Search Adv: IAT VA " PRINTF_DWORD_PTR_FULL L" RVA " PRINTF_DWORD_PTR_FULL L" Size 0x%04X (%d)", addressIATAdv, addressIATAdv - ProcessAccessHelp::targetImageBase, sizeIATAdv, sizeIATAdv);
+		}
+		else
+		{
+			Scylla::windowLog.log(L"IAT Search Adv: IAT not found at OEP " PRINTF_DWORD_PTR_FULL L"!", searchAddress);
+		}
 
-			if (Scylla::config[USE_ADVANCED_IAT_SEARCH].isTrue())
-			{
-				if (iatSearch.searchImportAddressTableInProcess(searchAddress, &addressIATAdv, &sizeIATAdv, true))
-				{
-					Scylla::windowLog.log(L"IAT Search Adv: IAT VA " PRINTF_DWORD_PTR_FULL L" RVA " PRINTF_DWORD_PTR_FULL L" Size 0x%04X (%d)", addressIATAdv, addressIATAdv - ProcessAccessHelp::targetImageBase, sizeIATAdv, sizeIATAdv);
-				}
-				else
-				{
-					Scylla::windowLog.log(L"IAT Search Adv: IAT not found at OEP " PRINTF_DWORD_PTR_FULL L"!", searchAddress);
-				}
-			}
+	}
 
-
-			if (iatSearch.searchImportAddressTableInProcess(searchAddress, &addressIAT, &sizeIAT, false))
-			{
-				Scylla::windowLog.log(L"IAT Search Nor: IAT VA " PRINTF_DWORD_PTR_FULL L" RVA " PRINTF_DWORD_PTR_FULL L" Size 0x%04X (%d)", addressIAT, addressIAT - ProcessAccessHelp::targetImageBase, sizeIAT, sizeIAT);
-			}
-			else
-			{
-				Scylla::windowLog.log(L"IAT Search Nor: IAT not found at OEP " PRINTF_DWORD_PTR_FULL L"!", searchAddress);
-			}
-
-			if (addressIAT != 0 && addressIATAdv == 0)
-			{
-				setDialogIATAddressAndSize(addressIAT, sizeIAT);
-			}
-			else if (addressIAT == 0 && addressIATAdv != 0)
+	// Executive arbitrage between normal and advanced search results
+	if (addressIAT != 0 && addressIATAdv == 0)
+	{
+		setDialogIATAddressAndSize(addressIAT, sizeIAT);
+	}
+	else if (addressIAT == 0 && addressIATAdv != 0)
+	{
+		setDialogIATAddressAndSize(addressIATAdv, sizeIATAdv);
+	}
+	else if (addressIAT != 0 && addressIATAdv != 0)
+	{
+		if (addressIATAdv != addressIAT || sizeIAT != sizeIATAdv)
+		{
+			int msgboxID = MessageBox(L"Result of advanced and normal search is different. Do you want to use the IAT Search Advanced result?", L"Information", MB_YESNO|MB_ICONINFORMATION);
+			if (msgboxID == IDYES)
 			{
 				setDialogIATAddressAndSize(addressIATAdv, sizeIATAdv);
 			}
-			else if (addressIAT != 0 && addressIATAdv != 0)
+			else
 			{
-				if (addressIATAdv != addressIAT || sizeIAT != sizeIATAdv)
-				{
-					int msgboxID = MessageBox(L"Result of advanced and normal search is different. Do you want to use the IAT Search Advanced result?", L"Information", MB_YESNO|MB_ICONINFORMATION);
-					if (msgboxID == IDYES)
-					{
-						setDialogIATAddressAndSize(addressIATAdv, sizeIATAdv);
-					}
-					else
-					{
-						setDialogIATAddressAndSize(addressIAT, sizeIAT);
-					}
-				}
-				else
-				{
-					setDialogIATAddressAndSize(addressIAT, sizeIAT);
-				}
+				setDialogIATAddressAndSize(addressIAT, sizeIAT);
 			}
-			
+		}
+		else
+		{
+			setDialogIATAddressAndSize(addressIAT, sizeIAT);
 		}
 	}
+			
 }
 
 void MainGui::getImportsActionHandler()

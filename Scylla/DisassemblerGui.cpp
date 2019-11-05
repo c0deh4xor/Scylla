@@ -1,9 +1,11 @@
 #include "DisassemblerGui.h"
 #include <algorithm>
+#include <Psapi.h>
+
 #include "ProcessAccessHelp.h"
 #include "Architecture.h"
-#include <Psapi.h>
-#pragma comment(lib, "Psapi.lib")
+#include "Scylla.h"
+
 
 DisassemblerGui::DisassemblerGui(DWORD_PTR startAddress, ApiReader * apiReaderObject)
 {
@@ -199,7 +201,7 @@ bool DisassemblerGui::displayDisassembly()
 
 	for (unsigned int i = 0; i < ProcessAccessHelp::decodedInstructionsCount; i++)
 	{
-		swprintf_s(tempBuffer, PRINTF_DWORD_PTR_FULL,ProcessAccessHelp::decodedInstructions[i].offset);
+		swprintf_s(tempBuffer, PRINTF_DWORD_PTR_FULL, (uintptr_t) ProcessAccessHelp::decodedInstructions[i].offset);
 
 		ListDisassembler.InsertItem(i, tempBuffer);
 
@@ -414,9 +416,7 @@ void DisassemblerGui::initAddressCommentList()
 			}
 			else
 			{
-#ifdef DEBUG_COMMENTS
 				Scylla::debugLog.log(L"DllInjection::getModuleHandle :: GetModuleFileNameExW failed 0x%X", GetLastError());
-#endif
 			}
 		}
 	}

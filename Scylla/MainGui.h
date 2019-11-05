@@ -25,6 +25,16 @@
 #include "FunctionExport.h"
 #include "IATReferenceScan.h"
 
+typedef struct _GUI_DLL_PARAMETER {
+	DWORD dwProcessId;
+	HINSTANCE mod;
+	DWORD_PTR entrypoint;
+} GUI_DLL_PARAMETER, *PGUI_DLL_PARAMETER;
+
+
+// Initialize GUI instance
+int InitializeGui(HINSTANCE hInstance, LPARAM param);
+
 class MainGui : public CDialogImpl<MainGui>, public CWinDataExchange<MainGui>, public CDialogResize<MainGui>, public CMessageFilter
 {
 public:
@@ -142,6 +152,8 @@ public:
 
 	MainGui();
 
+	~MainGui();
+
 	//void addTextToOutputLog(const WCHAR * text);
 
 	//CWindow getLogListboxHandle() const { return ListLog; }
@@ -160,6 +172,7 @@ protected:
 
 	Process * selectedProcess;
 	bool isProcessSuspended;
+	SCY_HANDLE hProcessContext;
 
 	// File selection filters
 

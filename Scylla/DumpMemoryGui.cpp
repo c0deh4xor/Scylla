@@ -1,9 +1,10 @@
 #include "DumpMemoryGui.h"
+#include <Psapi.h>
 
 #include "Architecture.h"
 #include "ProcessAccessHelp.h"
-#include <Psapi.h>
 #include "PeParser.h"
+#include "Scylla.h"
 
 WCHAR DumpMemoryGui::protectionString[100];
 const WCHAR DumpMemoryGui::MemoryUndefined[] = L"UNDEF";
@@ -395,9 +396,7 @@ void DumpMemoryGui::getMemoryList()
 		}
 		else
 		{
-#ifdef DEBUG_COMMENTS
 			Scylla::debugLog.log(L"getMemoryList :: GetModuleFileNameExW failed 0x%X", GetLastError());
-#endif
 		}
 	}
 
@@ -512,7 +511,7 @@ bool DumpMemoryGui::dumpMemory()
 	DWORD_PTR address = EditMemoryAddress.GetValue();
 	dumpedMemorySize = EditMemorySize.GetValue();
 
-	swprintf_s(dumpFilename,TEXT("MEM_")TEXT(PRINTF_DWORD_PTR_FULL_S)TEXT("_")TEXT("%08X"),address,dumpedMemorySize);
+	swprintf_s(dumpFilename,TEXT("MEM_") PRINTF_DWORD_PTR_FULL TEXT("_")TEXT("%08X"),address,dumpedMemorySize);
 
 	dumpedMemory = new BYTE[dumpedMemorySize];
 

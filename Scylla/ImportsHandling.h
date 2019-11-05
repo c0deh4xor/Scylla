@@ -1,7 +1,8 @@
 #pragma once
 
 #include <map>
-#include <hash_map>
+//#include <hash_map>
+#include <unordered_map>
 
 // WTL
 #include <atlbase.h>
@@ -20,7 +21,7 @@ public:
 	std::map<DWORD_PTR, ImportModuleThunk> moduleListNew;
 
 	ImportsHandling(CMultiSelectTreeViewCtrl& TreeImports);
-	~ImportsHandling();
+	virtual ~ImportsHandling();
 
 	unsigned int thunkCount() const { return m_thunkCount; }
 	unsigned int invalidThunkCount() const { return m_invalidThunkCount; }
@@ -66,7 +67,8 @@ private:
 		};
 	};
 
-	stdext::hash_map<HTREEITEM, TreeItemData> itemData;
+	//stdext::hash_map<HTREEITEM, TreeItemData> itemData;
+  std::unordered_map<HTREEITEM, TreeItemData> itemData;
 
 	void setItemData(CTreeItem item, const TreeItemData * data);
 	TreeItemData * getItemData(CTreeItem item);
