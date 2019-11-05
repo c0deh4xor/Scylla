@@ -1,0 +1,43 @@
+#pragma once
+
+#include "ConfigurationHolder.h"
+#include "PluginLoader.h"
+#include "ProcessLister.h"
+#include "Logger.h"
+
+#define APPNAME TEXT("Scylla")
+#define APPVERSION TEXT("v@VERSION_TCHAR@")
+#define APPVERSIONDWORD 0x@VERSION_DWORD@
+
+#define DONATE_BTC_ADDRESS TEXT("1C6NN81V9pA6jq9r2HYBZkbrXPTTc7qTXq")
+
+/* Scylla current context. */
+typedef size_t SCY_HANDLE, *PSCY_HANDLE;
+
+class Scylla
+{
+public:
+    static LPCTSTR get_version_information();
+    static DWORD get_version();
+    static void initialize(Logger *log, bool isStandalone);
+    static bool initialize_context(PSCY_HANDLE phCtxt, DWORD_PTR TargetProcessPid);
+    static bool deinitialize_context(SCY_HANDLE hCtxt);
+    static int iat_search(SCY_HANDLE hScyllaContext, DWORD_PTR *iatStart, size_t *iatSize, DWORD_PTR searchStart, BOOL advancedSearch);
+    
+    static ConfigurationHolder config;
+    static PluginLoader plugins;
+
+    static ProcessLister processLister;
+
+    static Logger *Log;
+
+#ifndef DEBUG_COMMENTS
+    static DummyLogger debugLog;
+# else
+    static FileLog debugLog(DEBUG_LOG_FILENAME);
+#endif /* DEBUG_COMMENTS */
+
+private:
+
+    static const TCHAR DEBUG_LOG_FILENAME[];
+};

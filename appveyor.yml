@@ -1,41 +1,64 @@
-# branches to build
+version: 0.10.{build}
 branches:
-  # whitelist
   only:
-    - master
-    - cmake
+  - master
+skip_tags: true
+image: Visual Studio 2017
+configuration: Release
+platform:
+- x86
+- x64
+init:
+- ps: >-
+    if (-not $env:APPVEYOR_BUILD_VERSION.endswith($($env:APPVEYOR_REPO_COMMIT.substring(0,8)))){
 
-# Operating system (build VM template)
-os:
-  - Visual Studio 2015
-  - Visual Studio 2013
+    Update-AppveyorBuild -Version "$env:APPVEYOR_BUILD_VERSION-$($env:APPVEYOR_REPO_COMMIT.substring(0,8))"
 
+    }
+install:
+- cmd: >-
+    if "%PLATFORM%" == "x86" CALL "%programfiles% (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars32.bat"
 
-configuration:
-  - Release
-  - Debug
+    if "%PLATFORM%" == "x64" CALL "%programfiles% (x86)\Microsoft Visual Studio\2017\Community\VC\Auxiliary\Build\vcvars64.bat"
 
-# cmake generator name
-environment:
+    mkdir c:\tmp
 
-  matrix:
-    - CMAKE_GEN_PLATFORM: ""
-    - CMAKE_GEN_PLATFORM: "x64"      
-      
+    appveyor DownloadFile https://github.com/ninja-build/ninja/releases/download/v1.9.0/ninja-win.zip -FileName c:\tmp\ninja.zip
 
-build:
-  project: C:/projects/scylla/tmp/Scylla.vcxproj      # path to Visual Studio solution or project
+    7z x c:\tmp\ninja.zip -oC:\ninja > nul
 
-before_build:
-    - rmdir /S /Q tinyxml
-    - git clone https://github.com/rjpcomputing/ticpp tinyxml
-    - rmdir /S /Q WTL
-    - git clone https://github.com/lucasg/WindowsTemplateLibrary WTL
-    - mkdir tmp
-    - cd tmp
-    - cmake -A "%CMAKE_GEN_PLATFORM%" ..
+    set PATH=C:\ninja;%PATH%
 
+    ninja --version
+build_script:
+- ps: >-
+    git submodule -q update --init
+
+    Write-Host "./build/$($env:CONFIGURATION)-$($env:PLATFORM)"
+
+    Write-Host $env:APPVEYOR_BUILD_VERSION
+
+    New-Item -Force -Path "./build/$($env:CONFIGURATION)-$($env:PLATFORM)" -ItemType Directory
+
+    cd "./build/$($env:CONFIGURATION)-$($env:PLATFORM)"
+
+    cmake -G Ninja -DCMAKE_INSTALL_PREFIX:PATH="../../install/Scylla-$($env:PLATFORM)" -DCMAKE_BUILD_TYPE="$($env:CONFIGURATION)" -DVERSION_TCHAR="$($env:APPVEYOR_BUILD_VERSION)" -DVERSION_DWORD="$($env:APPVEYOR_REPO_COMMIT.substring(0,8))" ../..
+
+    cmake --build . --config "$($env:CONFIGURATION)"
 test_script:
-    - cmake --build . --config %CONFIGURATION%
-    - ps: Get-ChildItem -Path $($env:CONFIGURATION) -Recurse | Write-Host
-    - ctest . -V -C %CONFIGURATION%
+- ps: >-
+    cmake --build . --config "$($env:CONFIGURATION)" --target check
+
+    cmake --build . --config "$($env:CONFIGURATION)" --target install
+
+    cd ../../install
+
+    7z a "Scylla-$($env:PLATFORM)-$($env:APPVEYOR_BUILD_VERSION).zip" ./*
+artifacts:
+- path: install\*.zip
+deploy:
+- provider: GitHub
+  auth_token:
+    secure: RYkdCrFbwQ5ntgLpueRUbN3krvMrkbpyk+wnN7wHNxcbjG3/O+myXXPtKxSPdAAA
+  artifact: /.*\.zip/
+  force_update: true

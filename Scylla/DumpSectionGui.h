@@ -15,22 +15,7 @@
 
 #include <vector>
 #include "hexedit.h"
-
-
-class PeSection
-{
-public:
-	WCHAR name[IMAGE_SIZEOF_SHORT_NAME + 1];
-	DWORD_PTR virtualAddress;
-	DWORD  virtualSize;
-	DWORD  rawAddress;
-	DWORD  rawSize;
-	DWORD characteristics;
-
-	bool isDumped;
-
-	bool highlightVirtualSize();
-};
+#include "PeParser.h"
 
 class DumpSectionGui : public CDialogImpl<DumpSectionGui>, public CWinDataExchange<DumpSectionGui>, public CDialogResize<DumpSectionGui>
 {
@@ -71,7 +56,7 @@ class DumpSectionGui : public CDialogImpl<DumpSectionGui>, public CWinDataExchan
 
 		DWORD_PTR imageBase;  //VA
 		DWORD_PTR entryPoint;
-		WCHAR fullpath[MAX_PATH];
+		TCHAR fullpath[MAX_PATH]{};
 
 		std::vector<PeSection> & getSectionList();
 
@@ -104,7 +89,7 @@ private:
 	BOOL OnInitDialog(CWindow wndFocus, LPARAM lInitParam);
 
 	LRESULT OnListSectionColumnClicked(NMHDR* pnmh);
-	LRESULT OnListSectionClick(NMHDR* pnmh);
+    static LRESULT OnListSectionClick(NMHDR* pnmh);
 	LRESULT OnNMCustomdraw(NMHDR* pnmh);
 	LRESULT OnListDoubleClick(NMHDR* pnmh);
 
@@ -115,7 +100,7 @@ private:
 
 	// GUI functions
 
-	void addColumnsToSectionList(CListViewCtrl& list);
+    static void addColumnsToSectionList(CListViewCtrl& list);
 	void displaySectionList(CListViewCtrl& list);
 
 	static int CALLBACK listviewCompareFunc(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
